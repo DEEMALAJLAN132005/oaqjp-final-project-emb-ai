@@ -40,7 +40,7 @@ jobs:
           python scripts/capture_screenshots.py
       - name: Check actual Watson API response
         if: always()
-        run: python scripts/capture_terminal.py
+        run: PYTHONPATH=. python scripts/capture_terminal.py
       - name: Upload available evidence
         if: always()
         uses: actions/upload-artifact@v4
