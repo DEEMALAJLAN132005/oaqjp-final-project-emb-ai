@@ -1,0 +1,49 @@
+name: Verify Emotion Detector
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Python dependencies
+        run: pip install --disable-pip-version-check -r requirements.txt
+      - name: Test EmotionDetection package import
+        run: |
+          mkdir -p evidence
+          { echo '>>> from EmotionDetection import emotion_detector'; python -c 'from EmotionDetection import emotion_detector; print("EmotionDetection is a valid package")'; } 2>&1 | tee evidence/4b_packaging_test.txt
+      - name: Run unit tests
+        run: |
+          python -m unittest discover -v 2>&1 | tee evidence/5b_unit_tests.txt
+          test $? -eq 0
+      - name: Analyze server with Pylint
+        run: |
+          python -m pylint server.py 2>&1 | tee evidence/8b_static_code_analysis.txt
+          test $? -eq 0
+      - name: Run Flask and capture actual browser screenshots
+        run: |
+          PORT=5000 python server.py > evidence/flask_server.log 2>&1 &
+          for i in $(seq 1 25); do
+            if curl -fsS http://127.0.0.1:5000/ >/dev/null; then break; fi
+            sleep 1
+          done
+          python scripts/capture_screenshots.py
+      - name: Check actual Watson API response
+        if: always()
+        run: python scripts/capture_terminal.py
+      - name: Upload available evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emotion-detector-evidence
+          path: evidence/
